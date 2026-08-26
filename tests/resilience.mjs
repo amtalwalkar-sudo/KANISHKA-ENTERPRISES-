@@ -1,0 +1,17 @@
+import { chromium } from 'playwright';
+const base=process.env.KFE_BASE_URL||'http://127.0.0.1:4173/';
+const browser=await chromium.launch({headless:true});
+const context=await browser.newContext(); const page=await context.newPage();
+await page.goto(base,{waitUntil:'networkidle'}); await page.waitForFunction(()=>!!window.__KFE_RUNTIME__);
+await page.evaluate(async()=>{for(const r of await window.__KFE_RUNTIME__.repository.list()) await window.__KFE_RUNTIME__.repository.delete(r.id); await window.__KFE_RUNTIME__.refresh()});
+await page.locator('input').first().fill('20000'); await page.getByRole('button',{name:'Start Duty'}).click();
+await page.waitForFunction(()=>window.__KFE_RUNTIME__.viewModels.work.data.length===1);
+await context.setOffline(true);
+if((await page.getByRole('status').innerText())!=='Offline') throw new Error('Offline status indicator did not update');
+const persisted=await page.evaluate(()=>window.__KFE_RUNTIME__.repository.get(Object.keys(window.__KFE_RUNTIME__.viewModels.work.data)[0]));
+const count=await page.evaluate(()=>window.__KFE_RUNTIME__.repository.list().then(x=>x.length));
+if(count!==1) throw new Error(`Offline persistence failed: ${count}`);
+await context.setOffline(false); await page.reload({waitUntil:'networkidle'}); await page.waitForFunction(()=>!!window.__KFE_RUNTIME__);
+const after=await page.evaluate(()=>window.__KFE_RUNTIME__.repository.list().then(x=>x.length));
+if(after!==1) throw new Error(`Reload persistence failed: ${after}`);
+await browser.close(); console.log('Resilience/offline gate: PASS');
