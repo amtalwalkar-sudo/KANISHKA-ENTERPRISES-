@@ -6,6 +6,7 @@ on:
 jobs:
   foundation:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,6 +16,20 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npx playwright install --with-deps chromium
-      - run: npm run preview -- --host 127.0.0.1 > /tmp/kfe-preview.log 2>&1 &
-      - run: node tests/business-runtime.mjs
-      - run: node tests/resilience.mjs
+      - name: Start production preview
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/kfe-preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/kfe-preview.log
+          exit 1
+      - name: Business runtime proof
+        env:
+          KFE_BASE_URL: http://127.0.0.1:4173/
+        run: node tests/business-runtime.mjs
+      - name: Offline and resilience proof
+        env:
+          KFE_BASE_URL: http://127.0.0.1:4173/
+        run: node tests/resilience.mjs
