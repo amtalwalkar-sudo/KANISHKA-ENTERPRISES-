@@ -1,0 +1,2 @@
+export function startWork({id,date,startOdo}){if(!Number.isFinite(startOdo)||startOdo<0)throw new Error('Starting odometer must be a non-negative number');return {id,date,status:'Open',startOdo,endOdo:null}};
+export function endWork(record,endOdo){if(!Number.isFinite(endOdo)||endOdo<record.startOdo)throw new Error('Ending odometer must be greater than or equal to starting odometer');return {...record,endOdo,status:'Closed',km:endOdo-record.startOdo}};
