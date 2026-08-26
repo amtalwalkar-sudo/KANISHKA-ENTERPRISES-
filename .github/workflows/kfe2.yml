@@ -3,16 +3,41 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kfe2-main
+  cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: {node-version: 20, cache: npm}
-      - run: npm install
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
-      - run: npm run preview -- --host 127.0.0.1 > /tmp/kfe-vite.log 2>&1 &
-      - run: node tests/business-runtime.mjs
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Build production dist
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Architecture gate
+        run: npm test
+      - name: Start production server
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 >/tmp/kfe-vite.log 2>&1 &
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
+          cat /tmp/kfe-vite.log
+          exit 1
+      - name: Real Chromium business-runtime gate
+        env:
+          KFE_BASE_URL: http://127.0.0.1:4173/
+        run: node tests/business-runtime.mjs
+      - name: Offline and resilience gate
+        env:
+          KFE_BASE_URL: http://127.0.0.1:4173/
+        run: node tests/resilience.mjs
