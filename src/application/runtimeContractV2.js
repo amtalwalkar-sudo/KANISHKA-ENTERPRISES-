@@ -6,7 +6,7 @@ import { outbox } from '../infrastructure/outbox/outbox.js';
 export function installRuntimeContract() {
   const viewModels = createViewModels();
   const workRepository = moduleRepositories.work;
-  const runtime = { viewModels, repository: workRepository, dashboard: { workKm: 0, workSessions: 0 }, actions: {} };
+  const runtime = { viewModels, repository: workRepository, outbox: { pending: () => outbox.pending() }, dashboard: { workKm: 0, workSessions: 0 }, actions: {} };
 
   const refresh = async () => {
     await Promise.all(Object.values(viewModels).map((vm) => vm.refresh()));
