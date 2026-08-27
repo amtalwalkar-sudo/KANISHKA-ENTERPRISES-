@@ -3,7 +3,6 @@ import { outbox } from '../../infrastructure/outbox/outbox.js';
 import { foundationMetadata, touchMetadata } from '../../infrastructure/sync/metadata.js';
 
 const names = Array.from({ length: 7 }, (_, index) => `module${index + 1}`);
-const foundationUserId = 'foundation-user';
 
 function createViewModel(name) {
   const repository = moduleRepositories[name];
@@ -24,7 +23,7 @@ function createViewModel(name) {
     const existing = await repository.get(id);
     const normalized = existing
       ? { ...existing, ...record, ...touchMetadata(existing) }
-      : { id, ...foundationMetadata(foundationUserId), ...record };
+      : { id, ...foundationMetadata(record.user_id), ...record };
     await repository.put(normalized);
     await outbox.enqueue({ action: 'UPSERT', module: name, record: normalized });
     await vm.refresh();
