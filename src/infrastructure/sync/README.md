@@ -1,0 +1,1 @@
+Synchronization foundation only: client UUIDs, metadata, soft-delete state, optional Supabase transport, and conflict-resolution boundary. No business calculations or business validation rules live here.
