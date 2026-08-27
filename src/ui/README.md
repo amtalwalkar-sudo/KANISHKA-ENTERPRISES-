@@ -1,0 +1,1 @@
+The UI directory is presentation-only. It must not contain business calculations, persistence calls, Supabase calls, Outbox access, or network transport logic.
