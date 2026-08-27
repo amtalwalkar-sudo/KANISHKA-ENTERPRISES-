@@ -1,0 +1,1 @@
+This directory contains the business-neutral Supabase foundation only. Business tables, columns, calculations, validation rules, allocation rules, and dashboard definitions are intentionally excluded until the KFE specification is supplied.
