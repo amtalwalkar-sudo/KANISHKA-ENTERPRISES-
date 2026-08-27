@@ -1,1 +1,0 @@
-Legacy business UI intentionally removed from the foundation runtime. Use FoundationShell.vue.
