@@ -1,11 +1,13 @@
 import { moduleRepositories } from '../../infrastructure/repositories/moduleRepository.js';
 import { outbox } from '../../infrastructure/outbox/outbox.js';
+import { foundationMetadata, touchMetadata } from '../../infrastructure/sync/metadata.js';
 
-const names = ['work', 'fuel', 'expenses', 'revenue', 'maintenance', 'loan', 'renewals'];
+const names = Array.from({ length: 7 }, (_, index) => `module${index + 1}`);
+const foundationUserId = 'foundation-user';
 
 function createViewModel(name) {
   const repository = moduleRepositories[name];
-  const vm = { name, data: [], loading: false, error: null, repository };
+  const vm = { name, data: [], loading: false, error: null };
 
   vm.refresh = async () => {
     vm.loading = true;
@@ -14,19 +16,30 @@ function createViewModel(name) {
     catch (error) { vm.error = error instanceof Error ? error.message : String(error); throw error; }
     finally { vm.loading = false; }
   };
+
   vm.get = (id) => repository.get(id);
-  vm.save = async (record) => {
-    if (!record || typeof record !== 'object' || !record.id) throw new Error(`${name}: record.id is required`);
-    await repository.put(record);
-    await outbox.enqueue({ type: `${name.toUpperCase()}_UPSERTED`, record });
+
+  vm.save = async (record = {}) => {
+    const id = record.id || globalThis.crypto.randomUUID();
+    const existing = await repository.get(id);
+    const normalized = existing
+      ? { ...existing, ...record, ...touchMetadata(existing) }
+      : { id, ...foundationMetadata(foundationUserId), ...record };
+    await repository.put(normalized);
+    await outbox.enqueue({ action: 'UPSERT', module: name, record: normalized });
     await vm.refresh();
-    return record;
+    return normalized;
   };
+
   vm.remove = async (id) => {
-    await repository.delete(id);
-    await outbox.enqueue({ type: `${name.toUpperCase()}_DELETED`, id });
+    const current = await repository.get(id);
+    if (!current) return;
+    const deleted = { ...current, is_deleted: true, synced: false, updated_at: new Date().toISOString() };
+    await repository.put(deleted);
+    await outbox.enqueue({ action: 'UPSERT', module: name, record: deleted });
     await vm.refresh();
   };
+
   return vm;
 }
 
