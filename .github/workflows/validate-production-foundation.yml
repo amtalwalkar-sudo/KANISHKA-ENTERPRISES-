@@ -1,0 +1,39 @@
+name: Validate Production Foundation
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  verify-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Step 1 - Install dependencies
+        run: npm install
+
+      - name: Step 2 - Production build
+        run: npm run build
+
+      - name: Step 3 - Verify PWA output
+        shell: bash
+        run: |
+          test -f dist/index.html
+          test -f dist/manifest.webmanifest || test -f dist/manifest.json
+          find dist -maxdepth 2 -type f -name 'sw*.js' -print -quit | grep -q .
+          echo "Production PWA artifacts verified."
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Steps 4-10 - Preview and browser foundation proof
+        run: npm run test:e2e
