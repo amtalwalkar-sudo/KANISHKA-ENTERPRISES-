@@ -16,8 +16,8 @@ export function createFoundationRecord(input = {}) {
     id,
     user_id: userId,
     created_at: input.created_at ?? now,
-    updated_at: now,
-    synced: false,
+    updated_at: input.updated_at ?? now,
+    synced: input.synced === true,
     is_deleted: input.is_deleted === true
   };
 }
@@ -29,4 +29,8 @@ export function markDeleted(record) {
     updated_at: new Date().toISOString(),
     synced: false
   };
+}
+
+export function newClientUuid() {
+  return clientUuid();
 }
