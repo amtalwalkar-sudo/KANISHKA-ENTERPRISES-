@@ -18,3 +18,9 @@ db.version(3).stores({
   outbox: 'id,created_at,status,updated_at',
   crashLogs: 'id,created_at'
 });
+
+db.version(4).stores({
+  records: 'id,user_id,created_at,updated_at,synced,is_deleted,module',
+  outbox: 'id,created_at,status,updated_at,next_retry_at,idempotency_key,record_id',
+  crashLogs: 'id,created_at,severity'
+});
