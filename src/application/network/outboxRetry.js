@@ -1,5 +1,6 @@
 import { outbox } from '../../infrastructure/outbox/outbox.js';
 import { db } from '../../infrastructure/db/database.js';
+import { createSyncEnvelope } from '../../infrastructure/sync/syncProtocol.js';
 
 let running = false;
 
@@ -25,12 +26,14 @@ export async function retryOutbox(send = syncRecordToApi, { batchSize = 25 } = {
     let failed = 0;
     for (const message of pending) {
       try {
-        await send(message.payload);
-        const record = message.payload?.record;
-        if (record?.id) await db.records.update(record.id, { synced: true });
+        await outbox.claim(message.id);
+        await send(createSyncEnvelope(message.payload, message.operation || 'upsert'));
+        const recordId = message.record_id || message.payload?.record?.id;
+        if (recordId) await db.records.update(recordId, { synced: true, updated_at: message.payload?.record?.updated_at });
         await outbox.markDone(message.id);
         completed += 1;
-      } catch {
+      } catch (error) {
+        await outbox.markFailed(message.id, error, message.attempts || 0);
         failed += 1;
       }
     }
