@@ -11,11 +11,11 @@ export function installRuntimeContract() {
   const refresh = async () => {
     await Promise.all(Object.values(viewModels).map((vm) => vm.refresh()));
     const records = viewModels.work.data;
-    runtime.dashboard = {
+    Object.assign(runtime.dashboard, {
       workKm: records.reduce((sum, r) => sum + (Number(r.km) || 0), 0),
       workSessions: records.length
-    };
-    window.KFE_DASHBOARD_SNAPSHOT = runtime.dashboard;
+    });
+    window.KFE_DASHBOARD_SNAPSHOT = { ...runtime.dashboard };
     return runtime.dashboard;
   };
 
