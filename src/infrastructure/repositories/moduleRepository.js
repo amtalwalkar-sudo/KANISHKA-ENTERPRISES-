@@ -1,4 +1,5 @@
 import { db } from '../db/database.js';
+import { createFoundationRecord, markDeleted } from '../../domain/foundationRecord.js';
 
 export function createModuleRepository(moduleName) {
   const table = () => db.records;
@@ -6,11 +7,14 @@ export function createModuleRepository(moduleName) {
     name: moduleName,
     async get(id) { return table().get(id); },
     async list() { return table().where('module').equals(moduleName).toArray(); },
-    async put(record) { return table().put({ ...record, module: moduleName }); },
+    async put(record) {
+      const normalized = createFoundationRecord({ ...record, module: moduleName });
+      return table().put(normalized);
+    },
     async softDelete(id) {
       const current = await table().get(id);
       if (!current) return;
-      await table().put({ ...current, is_deleted: true, synced: false, updated_at: new Date().toISOString() });
+      await table().put(markDeleted(current));
     }
   };
 }
