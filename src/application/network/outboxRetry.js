@@ -1,4 +1,5 @@
 import { outbox } from '../../infrastructure/outbox/outbox.js';
+import { db } from '../../infrastructure/db/database.js';
 
 let running = false;
 
@@ -25,6 +26,8 @@ export async function retryOutbox(send = syncRecordToApi, { batchSize = 25 } = {
     for (const message of pending) {
       try {
         await send(message.payload);
+        const record = message.payload?.record;
+        if (record?.id) await db.records.update(record.id, { synced: true });
         await outbox.markDone(message.id);
         completed += 1;
       } catch {
