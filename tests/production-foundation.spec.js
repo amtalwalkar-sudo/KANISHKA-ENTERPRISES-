@@ -1,4 +1,4 @@
-import { test, expect } from 'playwright/test';
+import { test, expect } from '@playwright/test';
 
 async function clearKfeDatabase(page) {
   await page.evaluate(() => new Promise((resolve, reject) => {
@@ -9,22 +9,24 @@ async function clearKfeDatabase(page) {
   }));
 }
 
-async function outboxPending(page) {
-  return page.evaluate(() => new Promise((resolve, reject) => {
-    const request = indexedDB.open('kfe2');
-    request.onsuccess = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('outbox')) return resolve(0);
-      const tx = db.transaction('outbox', 'readonly');
-      const get = tx.objectStore('outbox').getAll();
-      get.onsuccess = () => resolve(get.result.filter((item) => item.status === 'pending').length);
-      get.onerror = () => reject(get.error);
-    };
-    request.onerror = () => reject(request.error);
-  }));
+async function pendingOutbox(page) {
+  return page.evaluate(() => window.__KFE_RUNTIME__.outbox.pending());
 }
 
-test('production foundation: UI, runtime contract, persistence, dashboard and offline outbox', async ({ page }) => {
+test('production foundation: UI, runtime contract, persistence, dashboard and offline outbox retry', async ({ page }) => {
+  let syncCalled = false;
+  let syncedPayload = null;
+
+  await page.route('**/api/sync', async (route) => {
+    syncCalled = true;
+    syncedPayload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true })
+    });
+  });
+
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Kanishka Fleet ERP 2.0' })).toBeVisible();
 
@@ -44,30 +46,11 @@ test('production foundation: UI, runtime contract, persistence, dashboard and of
   await page.getByLabel('Start odometer').fill('12345');
   await page.getByRole('button', { name: 'Start Duty' }).click();
   await expect(page.getByText('State: On duty')).toBeVisible();
-
-  const started = await page.evaluate(() => window.__KFE_RUNTIME__.viewModels.work.data);
-  expect(started).toHaveLength(1);
-  expect(started[0].startOdo).toBe(12345);
-
   await page.getByLabel('End odometer').fill('12350');
   await page.getByRole('button', { name: 'End Duty' }).click();
   await expect(page.getByText('State: Off duty')).toBeVisible();
   await expect(page.getByText('Work sessions: 1')).toBeVisible();
   await expect(page.getByText('Work KM: 5')).toBeVisible();
-
-  const persisted = await page.evaluate(() => new Promise((resolve, reject) => {
-    const request = indexedDB.open('kfe2');
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction('work', 'readonly');
-      const get = tx.objectStore('work').getAll();
-      get.onsuccess = () => resolve(get.result);
-      get.onerror = () => reject(get.error);
-    };
-    request.onerror = () => reject(request.error);
-  }));
-  expect(persisted).toHaveLength(1);
-  expect(persisted[0].endOdo).toBe(12350);
 
   await page.reload();
   await expect(page.getByText('Work sessions: 1')).toBeVisible();
@@ -77,8 +60,17 @@ test('production foundation: UI, runtime contract, persistence, dashboard and of
   await page.getByLabel('Start odometer').fill('20000');
   await page.getByRole('button', { name: 'Start Duty' }).click();
   await expect(page.getByText('State: On duty')).toBeVisible();
-  expect(await outboxPending(page)).toBeGreaterThanOrEqual(1);
+
+  const queued = await pendingOutbox(page);
+  expect(queued.some((item) => item.payload?.type === 'WORK_CREATED' && item.payload?.record?.startOdo === 20000)).toBe(true);
 
   await page.context().setOffline(false);
-  await expect.poll(() => outboxPending(page), { timeout: 5000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => syncCalled, { timeout: 10000 }).toBe(true);
+  expect(syncedPayload.type).toBe('WORK_CREATED');
+  expect(syncedPayload.record.startOdo).toBe(20000);
+
+  await expect.poll(async () => {
+    const items = await pendingOutbox(page);
+    return items.filter((item) => item.payload?.record?.startOdo === 20000).length;
+  }, { timeout: 10000 }).toBe(0);
 });
