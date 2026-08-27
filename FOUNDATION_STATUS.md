@@ -1,0 +1,1 @@
+Foundation reset: business-neutral. Archived business calculations, boundaries, business runtime proof, and resilience proof are not part of the foundation. New business rules will be introduced only after the foundation is stable.
