@@ -1,5 +1,5 @@
 import { createApp } from 'vue';
-import App from './ui/App.vue';
+import App from './ui/FoundationShell.vue';
 import './ui/styles.css';
 import { installRuntimeContract } from './application/runtimeContractV2.js';
 import { installNetworkRetry, syncRecordToApi } from './application/network/outboxRetry.js';
