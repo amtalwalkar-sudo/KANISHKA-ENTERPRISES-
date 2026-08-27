@@ -1,29 +1,23 @@
 import { db } from '../db/database.js';
 
-const tableNames = {
-  work: 'work',
-  fuel: 'fuel',
-  expenses: 'expenses',
-  revenue: 'revenue',
-  maintenance: 'maintenance',
-  loan: 'loans',
-  renewals: 'renewals'
-};
-
 export function createModuleRepository(moduleName) {
-  const tableName = tableNames[moduleName];
-  if (!tableName) throw new Error(`Unknown module: ${moduleName}`);
-
-  const table = () => db.table(tableName);
+  const table = () => db.records;
   return {
+    name: moduleName,
     async get(id) { return table().get(id); },
-    async list() { return table().toArray(); },
-    async put(record) { return table().put(record); },
-    async delete(id) { return table().delete(id); },
-    async clear() { return table().clear(); }
+    async list() { return table().where('module').equals(moduleName).toArray(); },
+    async put(record) { return table().put({ ...record, module: moduleName }); },
+    async softDelete(id) {
+      const current = await table().get(id);
+      if (!current) return;
+      await table().put({ ...current, is_deleted: true, synced: false, updated_at: new Date().toISOString() });
+    }
   };
 }
 
 export const moduleRepositories = Object.fromEntries(
-  Object.keys(tableNames).map((name) => [name, createModuleRepository(name)])
+  Array.from({ length: 7 }, (_, index) => {
+    const name = `module${index + 1}`;
+    return [name, createModuleRepository(name)];
+  })
 );
