@@ -1,0 +1,1 @@
+Legacy business UI has been replaced by FoundationShell.vue. Do not restore business behavior into the presentation shell.
