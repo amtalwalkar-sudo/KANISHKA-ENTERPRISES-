@@ -12,7 +12,13 @@ export function createSyncEnvelope(record, operation = 'upsert') {
 export function shouldReplaceLocal(localRecord, cloudRecord) {
   if (!localRecord) return true;
   if (!cloudRecord) return false;
-  return new Date(cloudRecord.updated_at).getTime() > new Date(localRecord.updated_at).getTime();
+  const localTime = new Date(localRecord.updated_at).getTime();
+  const cloudTime = new Date(cloudRecord.updated_at).getTime();
+  if (cloudTime !== localTime) return cloudTime > localTime;
+  if (Boolean(cloudRecord.is_deleted) !== Boolean(localRecord.is_deleted)) {
+    return Boolean(cloudRecord.is_deleted);
+  }
+  return false;
 }
 
 export function mergeLww(localRecord, cloudRecord) {
