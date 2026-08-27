@@ -1,0 +1,1 @@
+The previous business UI has been removed from the runtime. FoundationShell.vue is the only presentation shell.
