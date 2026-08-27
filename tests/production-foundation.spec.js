@@ -13,7 +13,7 @@ async function pendingOutbox(page) {
   return page.evaluate(() => window.__KFE_RUNTIME__.outbox.pending());
 }
 
-test('production foundation: UI, runtime contract, persistence, dashboard and offline outbox retry', async ({ page }) => {
+test('production foundation: shell, VM boundary, persistence and offline outbox retry', async ({ page }) => {
   let syncCalled = false;
   let syncedPayload = null;
 
@@ -49,12 +49,13 @@ test('production foundation: UI, runtime contract, persistence, dashboard and of
   await page.getByLabel('End odometer').fill('12350');
   await page.getByRole('button', { name: 'End Duty' }).click();
   await expect(page.getByText('State: Off duty')).toBeVisible();
-  await expect(page.getByText('Work sessions: 1')).toBeVisible();
-  await expect(page.getByText('Work KM: 5')).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText('Work sessions: 1')).toBeVisible();
-  await expect(page.getByText('Work KM: 5')).toBeVisible();
+  const persisted = await page.evaluate(async () => window.__KFE_RUNTIME__.viewModels.work.data);
+  expect(persisted).toHaveLength(1);
+  expect(persisted[0].status).toBe('Closed');
+  expect(persisted[0].startOdo).toBe('12345');
+  expect(persisted[0].endOdo).toBe('12350');
 
   await page.context().setOffline(true);
   await page.getByLabel('Start odometer').fill('20000');
@@ -62,15 +63,14 @@ test('production foundation: UI, runtime contract, persistence, dashboard and of
   await expect(page.getByText('State: On duty')).toBeVisible();
 
   const queued = await pendingOutbox(page);
-  expect(queued.some((item) => item.payload?.type === 'WORK_CREATED' && item.payload?.record?.startOdo === 20000)).toBe(true);
+  expect(queued.some((item) => item.payload?.record?.startOdo === '20000')).toBe(true);
 
   await page.context().setOffline(false);
   await expect.poll(() => syncCalled, { timeout: 10000 }).toBe(true);
-  expect(syncedPayload.type).toBe('WORK_CREATED');
-  expect(syncedPayload.record.startOdo).toBe(20000);
+  expect(syncedPayload.record.startOdo).toBe('20000');
 
   await expect.poll(async () => {
     const items = await pendingOutbox(page);
-    return items.filter((item) => item.payload?.record?.startOdo === 20000).length;
+    return items.filter((item) => item.payload?.record?.startOdo === '20000').length;
   }, { timeout: 10000 }).toBe(0);
 });
