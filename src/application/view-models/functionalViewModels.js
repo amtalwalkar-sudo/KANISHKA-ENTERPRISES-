@@ -5,31 +5,29 @@ const names = ['work', 'fuel', 'expenses', 'revenue', 'maintenance', 'loan', 're
 
 function createViewModel(name) {
   const repository = moduleRepositories[name];
-  const state = { name, data: [], loading: false, error: null };
-  return {
-    ...state,
-    repository,
-    async refresh() {
-      state.loading = true;
-      state.error = null;
-      try { state.data = await repository.list(); return state.data; }
-      catch (error) { state.error = error instanceof Error ? error.message : String(error); throw error; }
-      finally { state.loading = false; }
-    },
-    get(id) { return repository.get(id); },
-    async save(record) {
-      if (!record || typeof record !== 'object' || !record.id) throw new Error(`${name}: record.id is required`);
-      await repository.put(record);
-      await outbox.enqueue({ type: `${name.toUpperCase()}_UPSERTED`, record });
-      await this.refresh();
-      return record;
-    },
-    async remove(id) {
-      await repository.delete(id);
-      await outbox.enqueue({ type: `${name.toUpperCase()}_DELETED`, id });
-      await this.refresh();
-    }
+  const vm = { name, data: [], loading: false, error: null, repository };
+
+  vm.refresh = async () => {
+    vm.loading = true;
+    vm.error = null;
+    try { vm.data = await repository.list(); return vm.data; }
+    catch (error) { vm.error = error instanceof Error ? error.message : String(error); throw error; }
+    finally { vm.loading = false; }
   };
+  vm.get = (id) => repository.get(id);
+  vm.save = async (record) => {
+    if (!record || typeof record !== 'object' || !record.id) throw new Error(`${name}: record.id is required`);
+    await repository.put(record);
+    await outbox.enqueue({ type: `${name.toUpperCase()}_UPSERTED`, record });
+    await vm.refresh();
+    return record;
+  };
+  vm.remove = async (id) => {
+    await repository.delete(id);
+    await outbox.enqueue({ type: `${name.toUpperCase()}_DELETED`, id });
+    await vm.refresh();
+  };
+  return vm;
 }
 
 export function createViewModels() {
