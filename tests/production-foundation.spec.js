@@ -58,4 +58,9 @@ test('production foundation: shell, seven VM boundary, metadata, persistence and
     const items = await pendingOutbox(page);
     return items.filter((item) => item.payload?.record?.id === recordId).length;
   }, { timeout: 10000 }).toBe(0);
+
+  await expect.poll(async () => {
+    const record = await page.evaluate(async (recordId) => window.__KFE_RUNTIME__.viewModels.module1.get(recordId), recordId);
+    return record?.synced;
+  }, { timeout: 10000 }).toBe(true);
 });
