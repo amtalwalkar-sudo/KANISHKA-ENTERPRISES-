@@ -2,8 +2,21 @@ import { outbox } from '../../infrastructure/outbox/outbox.js';
 
 let running = false;
 
-export async function retryOutbox(send, { batchSize = 25 } = {}) {
-  if (running || typeof send !== 'function') return { attempted: 0, completed: 0, failed: 0 };
+export async function syncRecordToApi(payload, { fetchImpl = globalThis.fetch, endpoint = '/api/sync' } = {}) {
+  if (typeof fetchImpl !== 'function') throw new Error('SYNC_TRANSPORT_UNAVAILABLE: fetch is not available.');
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) throw new Error(`SYNC_TRANSPORT_FAILED: HTTP ${response.status}`);
+  const contentType = response.headers?.get?.('content-type') || '';
+  if (contentType.includes('application/json')) return response.json();
+  return {ok: true};
+}
+
+export async function retryOutbox(send = syncRecordToApi, { batchSize = 25 } = {}) {
+  if (running || typeof send !== 'function') return {attempted: 0, completed: 0, failed: 0};
   running = true;
   try {
     const pending = (await outbox.pending()).slice(0, batchSize);
@@ -18,13 +31,13 @@ export async function retryOutbox(send, { batchSize = 25 } = {}) {
         failed += 1;
       }
     }
-    return { attempted: pending.length, completed, failed };
+    return {attempted: pending.length, completed, failed};
   } finally {
     running = false;
   }
 }
 
-export function installNetworkRetry(send) {
+export function installNetworkRetry(send = syncRecordToApi) {
   const run = () => {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     void retryOutbox(send);
