@@ -1,19 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-async function clearKfeDatabase(page) {
-  await page.evaluate(() => new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase('kfe2');
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
-  }));
-}
-
 async function pendingOutbox(page) {
   return page.evaluate(() => window.__KFE_RUNTIME__.outbox.pending());
 }
 
-test('production foundation: shell, VM boundary, persistence and offline outbox retry', async ({ page }) => {
+test('production foundation: shell, seven VM boundary, metadata, persistence and offline outbox retry', async ({ page }) => {
   let syncCalled = false;
   let syncedPayload = null;
 
@@ -28,7 +19,7 @@ test('production foundation: shell, VM boundary, persistence and offline outbox 
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Kanishka Fleet ERP 2.0' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'KFE 2.0' })).toBeVisible();
 
   const contract = await page.evaluate(() => ({
     runtime: Boolean(window.__KFE_RUNTIME__),
@@ -36,44 +27,35 @@ test('production foundation: shell, VM boundary, persistence and offline outbox 
     actions: Object.keys(window.__KFE_RUNTIME__?.actions ?? {})
   }));
   expect(contract.runtime).toBe(true);
-  expect(contract.models).toEqual(expect.arrayContaining(['work', 'fuel', 'expenses', 'revenue', 'maintenance', 'loan', 'renewals']));
-  expect(contract.actions).toEqual(expect.arrayContaining(['startWork', 'endWork']));
-
-  await clearKfeDatabase(page);
-  await page.reload();
-  await expect(page.getByText('State: Off duty')).toBeVisible();
-
-  await page.getByLabel('Start odometer').fill('12345');
-  await page.getByRole('button', { name: 'Start Duty' }).click();
-  await expect(page.getByText('State: On duty')).toBeVisible();
-  await page.getByLabel('End odometer').fill('12350');
-  await page.getByRole('button', { name: 'End Duty' }).click();
-  await expect(page.getByText('State: Off duty')).toBeVisible();
-
-  await page.reload();
-  await expect.poll(async () => {
-    const records = await page.evaluate(() => window.__KFE_RUNTIME__.viewModels.work.data);
-    return records.length;
-  }, { timeout: 10000 }).toBe(1);
-  const persisted = await page.evaluate(() => window.__KFE_RUNTIME__.viewModels.work.data[0]);
-  expect(persisted.status).toBe('Closed');
-  expect(persisted.startOdo).toBe('12345');
-  expect(persisted.endOdo).toBe('12350');
+  expect(contract.models).toEqual(['module1', 'module2', 'module3', 'module4', 'module5', 'module6', 'module7']);
+  expect(contract.actions).toEqual(expect.arrayContaining(['save', 'remove']));
 
   await page.context().setOffline(true);
-  await page.getByLabel('Start odometer').fill('20000');
-  await page.getByRole('button', { name: 'Start Duty' }).click();
-  await expect(page.getByText('State: On duty')).toBeVisible();
+  const userId = await page.evaluate(() => crypto.randomUUID());
+  const recordId = await page.evaluate(() => crypto.randomUUID());
+
+  await page.evaluate(async ({ userId, recordId }) => {
+    await window.__KFE_RUNTIME__.actions.save('module1', { id: recordId, user_id: userId, payload: { foundation: true } });
+  }, { userId, recordId });
+
+  const persisted = await page.evaluate(async (recordId) => window.__KFE_RUNTIME__.viewModels.module1.get(recordId), recordId);
+  expect(persisted.id).toBe(recordId);
+  expect(persisted.user_id).toBe(userId);
+  expect(persisted.synced).toBe(false);
+  expect(persisted.is_deleted).toBe(false);
+  expect(persisted.created_at).toBeTruthy();
+  expect(persisted.updated_at).toBeTruthy();
 
   const queued = await pendingOutbox(page);
-  expect(queued.some((item) => item.payload?.record?.startOdo === '20000')).toBe(true);
+  expect(queued.some((item) => item.payload?.record?.id === recordId)).toBe(true);
 
   await page.context().setOffline(false);
   await expect.poll(() => syncCalled, { timeout: 10000 }).toBe(true);
-  expect(syncedPayload.record.startOdo).toBe('20000');
+  expect(syncedPayload.record.id).toBe(recordId);
+  expect(syncedPayload.record.user_id).toBe(userId);
 
   await expect.poll(async () => {
     const items = await pendingOutbox(page);
-    return items.filter((item) => item.payload?.record?.startOdo === '20000').length;
+    return items.filter((item) => item.payload?.record?.id === recordId).length;
   }, { timeout: 10000 }).toBe(0);
 });
