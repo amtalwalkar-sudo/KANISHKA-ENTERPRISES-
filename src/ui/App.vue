@@ -15,14 +15,18 @@ window.addEventListener('offline', () => { offline.value = true; });
 async function start() {
   lastError.value = '';
   try {
-    const record = await runtime.actions.startWork({ startOdo: Number(startOdo.value) });
+    const value = Number(startOdo.value);
+    if (!Number.isFinite(value) || value < 0) throw new Error('Starting odometer must be a non-negative number');
+    const record = await runtime.actions.startWork({ startOdo: value });
     activeId.value = record.id; onDuty.value = true; dashboard.value = runtime.dashboard;
   } catch (e) { lastError.value = e.message; }
 }
 async function end() {
   lastError.value = '';
   try {
-    await runtime.actions.endWork({ id: activeId.value, endOdo: Number(endOdo.value) });
+    const value = Number(endOdo.value);
+    if (!Number.isFinite(value) || value < 0) throw new Error('Ending odometer must be a non-negative number');
+    await runtime.actions.endWork({ id: activeId.value, endOdo: value });
     activeId.value = null; onDuty.value = false; dashboard.value = runtime.dashboard;
   } catch (e) { lastError.value = e.message; }
 }
