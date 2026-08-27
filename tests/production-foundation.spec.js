@@ -51,11 +51,14 @@ test('production foundation: shell, VM boundary, persistence and offline outbox 
   await expect(page.getByText('State: Off duty')).toBeVisible();
 
   await page.reload();
-  const persisted = await page.evaluate(async () => window.__KFE_RUNTIME__.viewModels.work.data);
-  expect(persisted).toHaveLength(1);
-  expect(persisted[0].status).toBe('Closed');
-  expect(persisted[0].startOdo).toBe('12345');
-  expect(persisted[0].endOdo).toBe('12350');
+  await expect.poll(async () => {
+    const records = await page.evaluate(() => window.__KFE_RUNTIME__.viewModels.work.data);
+    return records.length;
+  }, { timeout: 10000 }).toBe(1);
+  const persisted = await page.evaluate(() => window.__KFE_RUNTIME__.viewModels.work.data[0]);
+  expect(persisted.status).toBe('Closed');
+  expect(persisted.startOdo).toBe('12345');
+  expect(persisted.endOdo).toBe('12350');
 
   await page.context().setOffline(true);
   await page.getByLabel('Start odometer').fill('20000');
